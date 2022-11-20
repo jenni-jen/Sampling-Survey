@@ -1,0 +1,285 @@
+---
+documentclass: ctexart
+classoption: a4paper
+geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
+output:
+  rticles::ctex:
+    latex_engine: pdflatex
+    number_sections: no
+    toc: no
+---
+
+
+# 习题5.21
+
+## a. 总体直方图及描述性统计量
+
+臭氧观测数据的总体直方图及描述性统计量如下：
+
+```{r ozone hist pop, fig.cap='臭氧观测数据的总体直方图',fig.dim=c(4,3),fig.align='center', dev.args=list(pointsize=8), results='hold', message=FALSE, warning=FALSE}
+library(knitr); library(kableExtra)
+ozone = read.csv('ozone.csv'); ozone_vec = as.vector(t(ozone[,2:25]))
+hist(ozone[,2:25][!is.na(ozone[,2:25])], main='Histogram of Hourly Ozone Readings',
+     xlab='Hourly Ozone Readings (ppb)')
+ozone_stats = data.frame(Mean=mean(ozone_vec,na.rm=T), Std.=sd(ozone_vec,na.rm=T),
+                         Median=median(ozone_vec,na.rm=T))
+kable(ozone_stats, caption='臭氧观测数据总体的描述性统计量', format='latex', 
+      digits=3, booktabs=TRUE) %>% kable_styling(latex_options = 'HOLD_position')
+```
+
+
+## b. 对臭氧观测数据进行周期为24的系统抽样
+
+从1到24中生成随机数 $k$ , 则臭氧观测数据的系统抽样样本为GMT $k$ 的所有观测。臭氧观测数据样本的直方图如下：
+
+```{r ozone hist sample, fig.cap='臭氧观测数据样本的直方图', fig.dim=c(4,3), fig.align='center', dev.args=list(pointsize=8)}
+set.seed(1122)
+k = sample(1:24, 1); ozone_sys24 = ozone[,k+1]
+hist(ozone_sys24, main=paste0('Histogram of Ozone Readings at GMT',k),
+     xlab=paste0('Ozone Readings at GMT',k))
+```
+
+
+## c. 臭氧观测数据系统抽样样本的描述性统计量、总体均值的区间估计
+
+将 (b) 问中得到的系统抽样样本当作SRS，这个样本的均值、标准差和中位数如下：
+
+```{r ozone sample stats, message=FALSE, warning=FALSE}
+ozone_sampleStats = data.frame(Mean=mean(ozone_sys24,na.rm=T),Std.=sd(ozone_sys24,na.rm=T),
+                               Median=median(ozone_sys24,na.rm=T))
+kable(ozone_sampleStats,caption='臭氧观测数据样本的描述性统计量',format='latex',
+      digits=3, booktabs=TRUE) %>% kable_styling(latex_options = 'HOLD_position')
+```
+
+用这个样本构造总体均值的95%置信区间估计，为
+$$
+\left[
+\bar{y} - z_{\alpha/2} \mathrm{SE}(\bar{y}) \ ,\ \bar{y} + z_{\alpha/2} \mathrm{SE}(\bar{y})
+\right]
+$$
+其中
+$$
+\mathrm{SE}(\bar{y}) = \sqrt{\dfrac{1-f}{n}s_y^2}
+$$
+
+这一区间估计的计算代码和结果如下：
+
+```{r ozone CI}
+n = dim(ozone)[1]
+ybar = mean(ozone_sys24,na.rm=T); s2_y = var(ozone_sys24,na.rm=T)
+SE_ybar = sqrt((1-1/24)/n * s2_y)
+ybar_CI_lb = ybar - qnorm(0.975)*SE_ybar; ybar_CI_ub = ybar + qnorm(0.975)*SE_ybar
+print(paste0('总体均值的95%置信区间为 [',round(ybar_CI_lb,3),' , ',
+             round(ybar_CI_ub,3),']'), quote=F)
+```
+
+而 (a) 问中得到的总体均值真实值为27.61，则这一置信区间不包含真实的总体均值。
+
+
+## d. 四个周期为96的系统抽样、用整群抽样的方法估计总体均值
+
+臭氧观测数据的总体共17520个样本。对臭氧观测数据进行周期为96的系统抽样，即总体被分成96个PSU，前48个PSU中每个PSU含183个样本，后48个PSU中每个PSU含182个样本。现抽取4个独立的系统抽样样本，即从96个PSU中抽取4个PSU，并对所抽取的每个PSU进行全面调查，这相当于单阶整群抽样。
+
+进行系统抽样的代码如下：
+
+```{r ozone sys, warning=FALSE}
+ozone_sys96 = matrix(c(ozone_vec,rep(NA,48)), nrow=183, ncol=96, byrow=T)
+set.seed(12345)
+PSU_k = sample(1:96, 4, replace=T)
+ozone_sys96_PSU4 = ozone_sys96[,PSU_k]
+print(paste0('所抽取的4个PSU为 ', paste(PSU_k,collapse=',')), quote=F)
+```
+
+考虑每个PSU都有183个样本，最后不足的数据用`NA`值填充，则问题转化为群规模相同的单阶整群抽样。有 $N=96,n=4,M=183$ .
+
+总体均值的估计为
+$$
+\hat{\bar{y}} = \dfrac{\hat{t}}{NM} = \dfrac{1}{n} \sum_{i \in \mathcal{S}} \bar{y}_{iU}
+= 28.615
+$$
+
+估计量的标准误为
+$$
+\mathrm{SE}(\hat{\bar{y}}) 
+= \frac 1M \sqrt{\dfrac{1-f}{n} s_t^2}
+= \sqrt{\dfrac{1-f}{n} \dfrac{1}{n-1} \sum_{i \in \mathcal{S}} (\bar{y}_{iU} - \hat{\bar{y}})^2}
+= 2.195
+$$
+
+则总体均值的95%置信区间为
+$$
+\left[
+\hat{\bar{y}} - z_{\alpha/2} \mathrm{SE}(\hat{\bar{y}}) \ ,\ 
+\hat{\bar{y}} + z_{\alpha/2} \mathrm{SE}(\hat{\bar{y}})
+\right]
+= [24.313 \ ,\ 32.917]
+$$
+
+以下是相关计算代码：
+
+```{r ozone cluster}
+N = 96; n = 4; M = 183; f = n/N
+y_iU = colMeans(ozone_sys96_PSU4, na.rm=T)
+y_barhat = mean(y_iU)
+SE_y_barhat = sqrt((1-f)/n * var(y_iU))
+y_barhat_CI_lb = y_barhat - qnorm(0.975) * SE_y_barhat
+y_barhat_CI_ub = y_barhat + qnorm(0.975) * SE_y_barhat
+```
+
+
+
+# 补充题
+
+## 1. 总体均值估计量的计算及性质
+
+采用二阶整群抽样法对总体进行抽样，有 $n=2,m=2,N=4,M=3$ , 则 $f=n/N=0.5$ , $f_{2i} \equiv f_2 = m/M = 2/3$ . 以下是抽样和估计量计算的代码：
+
+```{r supple sampling, results='hold'}
+supple = read.csv('supple.csv')
+n=2; m=2; N=4; M=3; f=n/N; f2=m/M
+set.seed(1111); PSU=sample(1:N, n)
+SSU=matrix(rep(0,4),nrow=2,ncol=2,dimnames=list(paste0('PSU',PSU),c('SSU_k1','SSU_k2')))
+set.seed(2222)
+for (i in PSU){
+  set.seed(sample(1:1000,1))
+  SSU_num = sample(1:M, m)
+  SSU[paste0('PSU',i), ] = as.vector(t(supple[i, SSU_num]))
+}
+y_barhat = sum(SSU) / (n*m)
+kable(SSU, caption='采用二阶整群抽样法抽取的样本', format='latex', booktabs=TRUE) %>%
+  kable_styling(latex_options = 'HOLD_position')
+```
+
+根据表3计算得
+$$
+\hat{\bar{y}}=\dfrac{1}{nm} \sum_{i \in \mathcal{S}} \sum_{j \in \mathcal{S}_i} y_{ij} = 6.5
+$$
+
+根据课件p22，有
+$$
+\hat{t}_{\text{unb}} = \sum_{i \in \mathcal{S}} \sum_{j \in \mathcal{S}_i} \frac Nn \frac Mm y_{ij} = NM \cdot \hat{\bar{y}}
+$$
+
+根据 $\hat{t}_{\text{unb}}$ 的三条性质及 $\hat{V}_{WR}(\hat{t}_{\text{unb}})$，可以推出 $\hat{\bar{y}}$ 的相应性质：  
+(1) $\hat{t}_{\text{unb}}$ 是 $t$ 的无偏估计，有 $\hat{\bar{y}} = \dfrac{\hat{t}_{\text{unb}}}{NM}$ , $\bar{y}_U = \dfrac{t}{NM}$ , 则 $\hat{\bar{y}}$ 是 $\bar{y}_U$ 的无偏估计;  
+(2) $\displaystyle V(\hat{\bar{y}}) = \dfrac{1}{N^2 M^2} V(\hat{t}_{\text{unb}}) = \dfrac{1-f}{M^2 n} S_t^2 + \dfrac{1-f_2}{nmN} \sum_{i=1}^N S_i^2$ ;  
+(3) 方差的无偏估计：$\displaystyle \hat{V}(\hat{\bar{y}}) = \dfrac{1}{N^2 M^2} \hat{V}(\hat{t}_{\text{unb}}) = \dfrac{1-f}{M^2 n} s_t^2 + \dfrac{1-f_2}{nmN} \sum_{i \in \mathcal{S}} s_i^2$ , $\mathrm{SE}(\hat{\bar{y}}) = \sqrt{\hat{V}(\hat{\bar{y}})}$ ;  
+(4) $\hat{V}_{WR}(\hat{\bar{y}}) = \dfrac{1}{N^2 M^2} \hat{V}_{WR}(\hat{t}_{\text{unb}}) = \dfrac{s_t^2}{M^2 n}$ .
+
+
+## 2. 总体参数及估计量方差的计算
+
+根据以下的计算代码
+
+```{r supple stats}
+supple_vec = as.vector(t(supple)); t_i = rowSums(supple)
+ybar_U = mean(supple_vec); S2 = var(supple_vec); S2_t = var(t_i)
+S2_i = apply(supple, 1, var)
+V_y_barhat = (1-f)/(M^2 * n) * S2_t + (1-f2)/(n*m*N) * sum(S2_i)
+```
+
+得
+$$
+\begin{aligned}
+\bar{y}_U & = \dfrac{1}{NM} \sum_{i=1}^N \sum_{j=1}^M y_{ij} = 7.5\\
+S^2 & = \dfrac{1}{NM-1} \sum_{i=1}^N \sum_{j=1}^M (y_{ij} - \bar{y}_U)^2 = 13 \\
+S_t^2 & = \dfrac{1}{N-1} \sum_{i=1}^N (t_i - \bar{t}_U)^2 = 27.67
+\end{aligned}
+$$
+
+由 $S_i^2 = \dfrac{1}{M-1} \sum_{j=1}^M (y_{ij} - \bar{y}_{iU})^2$ ，得 $S_1^2=17.33 \ ,\ S_2^2=9 \ ,\ S_3^2=12.33 \ ,\ S_4^2=19$ .  
+
+此外
+$$
+V(\hat{\bar{y}}) = \dfrac{1-f}{M^2 n} S_t^2 + \dfrac{1-f_2}{nmN} \sum_{i=1}^N S_i^2 = 1.970
+$$
+
+
+## 3. 所有二阶整群样本
+
+二阶正群样本共有 $\displaystyle \binom{4}{2} \times \binom{3}{2}^2 = 6 \times 3^2 = 54$ 个。以下是由代码生成的所有二阶整群样本及其统计量：
+
+```{r all samples, message=FALSE, warning=FALSE}
+library(stringr)
+PSU=c(); SSU=c(); Sample=c()
+ybar_hat=c(); s2_t = c(); s2_1=c(); s2_2=c(); s2_3=c(); s2_4=c()
+Vhat_ybar_hat=c(); Vhat_WR_y_barhat=c()
+
+get_PSU_char = function(vec){
+  return(paste0('[', vec[1], ',', vec[2], ']'))
+}
+get_SSU_char = function(vec){
+  return(paste0('[(',vec[1],',',vec[2],'),(',vec[3],',',vec[4],')]'))
+}
+get_sample_char = function(vec){
+  vec_char = sapply(vec, str_pad, 2, 'left')
+  return(paste0('[(',vec_char[1],',',vec_char[2],'),(',vec_char[3],',',vec_char[4],')]'))
+}
+calc_s2_t = function(vec){
+  t_i = c(mean(vec[1:2]) * 3, mean(vec[3:4]) * 3); s2_t = var(t_i)
+  return(s2_t)
+}
+calc_Vhat_ybar = function(s2_t,s2_i_list){
+  Vhat_ybar = (1-f)/(M^2*n) * s2_t + (1-f2)/(n*m*N) * sum(s2_i_list,na.rm=T)
+  return(Vhat_ybar)
+}
+
+for (v1 in 1:dim(t(combn(N,n)))[1]){
+  vec_i = t(combn(N,n))[v1,]
+  PSU_sample = supple[vec_i,]
+  for (v2 in 1:dim(t(combn(M,m)))[1]){
+    vec_j1 = t(combn(M,m))[v2,]
+    for (v3 in 1:dim(t(combn(M,m)))[1]){
+      vec_j2 = t(combn(M,m))[v3,]; SSU_nums = c(vec_j1, vec_j2)
+      SSU_sample_vec = c(t(PSU_sample[1,vec_j1]), t(PSU_sample[2,vec_j2]))
+      PSU = c(PSU, get_PSU_char(vec_i)); SSU = c(SSU, get_SSU_char(SSU_nums))
+      Sample = c(Sample, get_sample_char(SSU_sample_vec))
+      
+      ybar_hat = c(ybar_hat, mean(SSU_sample_vec))
+      s2_t_value = calc_s2_t(SSU_sample_vec)
+      s2_t = c(s2_t, s2_t_value)
+      s2_i_list = rep(NA,4)
+      s2_i_list[vec_i] = c(var(SSU_sample_vec[1:2]),var(SSU_sample_vec[3:4]))
+      s2_1 = c(s2_1,s2_i_list[1]); s2_2 = c(s2_2,s2_i_list[2])
+      s2_3 = c(s2_3,s2_i_list[3]); s2_4 = c(s2_4,s2_i_list[4])
+      Vhat_ybar_hat = c(Vhat_ybar_hat, calc_Vhat_ybar(s2_t_value,s2_i_list))
+      Vhat_WR_y_barhat = c(Vhat_WR_y_barhat, s2_t_value/(M^2*n))
+    }
+  }
+}
+
+SampleNum = 1:54
+
+result = data.frame(cbind(SampleNum, PSU, SSU, Sample, ybar_hat, s2_t, s2_1, s2_2, 
+                          s2_3, s2_4, Vhat_ybar_hat, Vhat_WR_y_barhat))
+res_print = data.frame(cbind(SampleNum, PSU, SSU, Sample, ybar_hat, s2_t, s2_1, s2_2, s2_3,
+                             s2_4, round(Vhat_ybar_hat,2), round(Vhat_WR_y_barhat,2)))
+colnames(res_print) = c("样本","PSU编号","SSU编号","样本数据",r"{$\hat{\bar{y}}$}",
+                        "$s_t^2$","$s_1^2$","$s_2^2$","$s_3^2$","$s_4^2$",
+                        r"{$\hat{V}(\hat{\bar{y}})$}",r"{$\hat{V}_{WR}(\hat{\bar{y}})$}")
+opts = options(knitr.kable.NA = "/")
+res_print %>%
+  kable(format='latex', caption='所有二阶整群样本及其统计量', escape=F, booktabs=T,
+        longtable=T) %>% 
+  kable_styling(latex_options='HOLD_position')
+```
+
+以下根据上表中列出的所有二阶整群样本进行估计量性质的验证：  
+(1) $E(\hat{\bar{y}}) = \displaystyle \dfrac{1}{54} \sum_{k=1}^{54} \hat{\bar{y}}_k = 7.5$ , 又 $\bar{y}_U = 7.5$ , 则 $\hat{\bar{y}}$ 是 $\bar{y}_U$ 的无偏估计;  
+(2) $E\left[\hat{V}(\hat{\bar{y}})\right] = \displaystyle \dfrac{1}{54} \sum_{k=1}^{54} \hat{V}_k(\hat{\bar{y}}) = 1.970$ , 又 $V(\hat{\bar{y}}) = 1.970$ , 则 $\hat{V}(\hat{\bar{y}})$ 是 $V(\hat{\bar{y}})$ 的无偏估计;  
+(3) $\hat{V}(\hat{\bar{y}})$ 的方差为 3.086，并且是 $V(\hat{\bar{y}})$ 的无偏估计。而 $\hat{V}_{WR}(\hat{\bar{y}})$ 的方差为 13.608，期望为 2.738，说明它是  $V(\hat{\bar{y}})$ 的有偏估计。所以，用 $\hat{V}(\hat{\bar{y}})$ 来估计 $V(\hat{\bar{y}})$ 更好。  
+(4) $E(s_t^2) = \displaystyle \dfrac{1}{54} \sum_{k=1}^{54} s^2_{t,k} = 49.292$ , 又 $S_t^2=27.67$ , 则 $s_t^2$ 不是 $S_t^2$ 的无偏估计.
+
+下面是相关的计算代码：
+
+```{r final}
+E_ybar_hat = mean(ybar_hat)
+E_Vhat_ybar_hat = mean(Vhat_ybar_hat)
+var_Vhat = var(Vhat_ybar_hat)
+E_Vhat_WR = mean(Vhat_WR_y_barhat); var_Vhat_WR = var(Vhat_WR_y_barhat)
+E_s2_t = mean(s2_t)
+```
+
+
+
+
