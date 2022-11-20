@@ -1,0 +1,72 @@
+---
+documentclass: ctexart
+classoption: a4paper
+geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
+output:
+  rticles::ctex:
+    number_sections: no
+    toc: no
+    extra_dependencies: ["fancyhdr", "lastpage"]
+---
+
+\pagestyle{fancy}
+\fancyhf{}
+
+\chead{习题2.32}
+\cfoot{Page \thepage \hspace{1pt} of \pageref{LastPage}}
+
+
+## 1. 读入数据
+
+因为本题用到的数据仅为棒球选手的ID和salary，所以仅提取数据框中的`player`和`salary`两列，读取的数据保存为变量名`baseball`。
+
+```{r 读入数据, echo=TRUE, message=FALSE, prompt=TRUE, comment=''}
+baseball = read.csv('baseball.csv', header=FALSE)
+baseball = baseball[,c(3,4)]
+colnames(baseball) = c('player', 'salary')
+head(baseball)
+```
+
+
+## 2. 抽取样本量为150的SRS
+
+采用以下方法实现SRS，步骤：  
+1) 令$\mathcal{S} = \varnothing$, $k=0$;   
+2) 由计算机独立地产生随机数$x$, $x \sim U(0,1)$, 由此得到$R$, $R = [Nx] + 1$, 则$R \sim U(1,...,N)$;  
+3) if $R \in \mathcal{S}$, then go to 2) else $\mathcal{S} = \mathcal{S} \bigcup\{R\}$, $k = k + 1$;  
+4) if $k < n$, then go to 2) else end.
+
+最终的抽样结果以变量`S`保存（`S`中的每个元素表示抽样单元的序号）
+
+```{r SRS, echo=TRUE, prompt=TRUE, comment=''}
+set.seed(12345)
+S = c(); k = 0 # 初始化变量
+n = 150; N = dim(baseball)[1]
+while (k < n){
+  x = runif(1)
+  R = floor(N*x) + 1
+  if (! R %in% S){
+    S = append(S, R)
+    k = k + 1
+  }
+}
+print(S) # 输出抽样结果
+```
+
+
+## 3. 变量`salary`和`logsal`的直方图
+
+```{r histogram, prompt=TRUE, fig.cap="左：salary的直方图；右：logsal的直方图", fig.dim=c(7,3), fig.align='center', dev.args=list(pointsize=8)}
+baseball_SRS = baseball[S,] # 用baseball_SRS储存抽样数据
+par(mfrow=c(1,2))
+salary = baseball_SRS$salary # 得到变量salary
+logsal = log(baseball_SRS$salary) # 得到变量logsal
+hist(salary) # salary的直方图
+hist(logsal) # logsal的直方图
+```
+
+由上图可知，`salary`的分布严重右偏，不是正态分布。经过对数变换后，`logsal`的右偏性不及`salary`，但仍有明显的右偏性，也不是正态分布。
+
+
+
+

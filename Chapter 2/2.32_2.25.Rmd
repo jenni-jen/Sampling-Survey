@@ -1,0 +1,319 @@
+---
+documentclass: ctexart
+classoption: a4paper
+geometry: "left=2cm,right=2cm,top=2cm,bottom=2cm"
+output:
+  rticles::ctex:
+    number_sections: no
+    toc: no
+---
+
+# 习题2.32
+
+首先，读入数据。因为本题用到的数据仅为棒球选手的ID、salary和POS，所以仅提取数据框中的`player`、`salary`和`POS`三列，读取的数据保存为变量名`baseball`。
+
+```{r 读入数据, echo=TRUE, message=FALSE, comment='', tidy=TRUE}
+baseball = read.csv('baseball.csv', header=FALSE)
+baseball = baseball[,c(3,4,5)]
+colnames(baseball) = c('player', 'salary', 'POS')
+head(baseball)
+```
+
+继续沿用(a)问中抽取的SRS，结果保存在变量`S`中。
+
+```{r SRS, echo=TRUE, comment='', tidy=TRUE}
+set.seed(0); set.seed(12345)
+n = 150; N = dim(baseball)[1]
+# 定义函数 get_SRS(n, N) 来从总体中得到一个SRS
+get_SRS = function(n, N){
+  S = c(); k = 0 # 初始化变量
+  while (k < n){
+    x = runif(1)
+    R = floor(N*x) + 1
+    if (! R %in% S){
+      S = append(S, R)
+      k = k + 1
+    }
+  }
+  return(S)
+}
+S = get_SRS(n, N)
+```
+
+
+## c. `logsal`的样本平均和95%置信区间
+
+样本平均的计算公式为 $\bar{y} = \displaystyle \dfrac{1}{n} \sum_{i \in \mathcal{S}} y_i$ ;  
+总体均值95%置信区间的计算公式为 $[\bar{y} - z_{\alpha / 2} SE(\bar{y}), \bar{y} + z_{\alpha / 2} SE(\bar{y})]$.
+
+使用程序计算`logsal`的样本平均和95%置信区间如下：
+
+```{r logsal, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+baseball_SRS = baseball[S,] # 用baseball_SRS储存抽样数据
+salary = baseball_SRS$salary # 得到变量salary
+logsal = log(salary) # 得到变量logsal
+mean_logsal = mean(logsal) # logsal的样本平均
+s2_logsal = sum((logsal - mean_logsal)^2) / (n - 1) # logsal的样本方差
+se_logsal = sqrt((1-n/N)/n * s2_logsal) # logsal的标准误SE
+CI_lb_logsal = mean_logsal - qnorm(0.975) * se_logsal # CI lower bound
+CI_ub_logsal = mean_logsal + qnorm(0.975) * se_logsal # CI upper bound
+# 输出结果
+print(paste0('变量logsal的均值为', round(mean_logsal, 3)), quote=FALSE)
+print(paste0('变量logsal的95%置信区间为', 
+             '[', round(CI_lb_logsal,3), ',', round(CI_ub_logsal,3), ']'), quote=FALSE)
+```
+
+
+## d. pitcher的总体比例的估计量
+
+`POS`列中为P的是pitcher，在`baseball_SRS`中新添加`pitcher`列，以1代表是pitcher，0代表不是pitcher。仍用(c)问中的公式计算pitcher总体比例的点估计及95%置信区间。
+
+```{r pitcher, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+baseball_SRS$pitcher = rep(0, n) # 创建pitcher列
+baseball_SRS$pitcher[baseball_SRS$POS == 'P'] = 1 # 是pitcher的选手赋值为1
+pitcher = baseball_SRS$pitcher
+p_hat_pitcher = sum(pitcher) / n # pitcher比例的样本估计值
+s2_pitcher = sum((pitcher - p_hat_pitcher)^2) / (n - 1) # pitcher比例的样本方差
+se_pitcher = sqrt((1-n/N)/n * s2_pitcher) # pitcher比例的标准误SE
+CI_lb_pitcher = p_hat_pitcher - qnorm(0.975) * se_pitcher # CI lower bound
+CI_ub_pitcher = p_hat_pitcher + qnorm(0.975) * se_pitcher # CI upper bound
+# 输出结果
+print(paste0('pitcher总体比例的样本估计值为', round(p_hat_pitcher, 3)), quote=FALSE)
+print(paste0('pitcher总体比例的95%置信区间为', 
+             '[', round(CI_lb_pitcher,3), ',', round(CI_ub_pitcher,3), ']'), quote=FALSE)
+```
+
+
+## e. `logsal`的总体均值和pitcher的总体比例与其置信区间的比较
+
+首先，计算`logsal`的总体均值和pitcher的总体比例：
+
+```{r population, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+mean_logsal_U = mean(log(baseball$salary)) # logsal的总体均值
+baseball$pitcher = rep(0, N)
+baseball$pitcher[baseball$POS == 'P'] = 1
+p_pitcher = mean(baseball$pitcher)
+# 输出结果
+print(paste0('logsal的总体均值为', round(mean_logsal_U, 3)), quote=FALSE)
+print(paste0('pitcher的总体比例为', round(p_pitcher, 3)), quote=FALSE)
+```
+
+然后，将`logsal`的总体均值和pitcher的总体比例与(c)问和(d)问中的置信区间进行比较：
+
+```{r population in CI, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+logsal_in_CI = mean_logsal_U > CI_lb_logsal & mean_logsal_U < CI_ub_logsal
+pitcher_in_CI = p_pitcher > CI_lb_pitcher & p_pitcher < CI_ub_pitcher
+# 输出结果
+print(paste0('logsal的总体均值在其CI中的结果为', logsal_in_CI), quote=FALSE)
+print(paste0('pitcher的总体比例在其CI中的结果为', pitcher_in_CI), quote=FALSE)
+```
+
+
+## 习题2.32补充
+
+### 1. 从总体中反复、独立地抽取1000个容量为150的SRS
+
+对每个SRS，计算变量`salary`和`logsal`的样本均值、样本方差，以及总体均值的95%置信区间，将计算得到的所有数据保存在数据框`SRS1000_df`中。
+
+```{r SRS1000, echo=TRUE, comment='', tidy=TRUE}
+# 初始化所有变量
+SRSmean_salary = c(); SRSmean_logsal = c()
+SRSvar_salary = c(); SRSvar_logsal = c()
+SRSlb_salary = c(); SRSub_salary = c()
+SRSlb_logsal = c(); SRSub_logsal = c()
+
+# 反复独立地抽取1000个容量为150的SRS，并对每一个样本计算相关的统计量
+set.seed(0); set.seed(54321)
+for (i in 1:1000){
+  S_temp = get_SRS(n, N) # SRS的序号
+  baseball_SRStemp = baseball[S_temp,] # 从原数据中提取SRS的信息
+  salary_temp = baseball_SRStemp$salary # 得到样本的salary
+  logsal_temp = log(salary_temp) # 得到样本的logsal
+  
+  SRSmean_salary = append(SRSmean_salary, mean(salary_temp)) # 更新salary样本均值
+  SRSmean_logsal = append(SRSmean_logsal, mean(logsal_temp)) # 更新logsal样本均值
+  SRSvar_salary = append(SRSvar_salary, var(salary_temp)) # 更新salary样本方差
+  SRSvar_logsal = append(SRSvar_logsal, var(logsal_temp)) # 更新logsal样本方差
+  
+  se_salary_temp = sqrt((1-n/N)/n * var(salary_temp)) # salary的标准误SE
+  se_logsal_temp = sqrt((1-n/N)/n * var(logsal_temp)) # logsal的标准误SE
+  
+  # 每一个样本salary的95%置信区间
+  lb_salary_temp = mean(salary_temp) - qnorm(0.975) * se_salary_temp
+  ub_salary_temp = mean(salary_temp) + qnorm(0.975) * se_salary_temp
+  # 每一个样本logsal的95%置信区间
+  lb_logsal_temp = mean(logsal_temp) - qnorm(0.975) * se_logsal_temp
+  ub_logsal_temp = mean(logsal_temp) + qnorm(0.975) * se_logsal_temp
+  
+  SRSlb_salary = append(SRSlb_salary, lb_salary_temp) # 更新salary置信下限
+  SRSub_salary = append(SRSub_salary, ub_salary_temp) # 更新salary置信上限
+  SRSlb_logsal = append(SRSlb_logsal, lb_logsal_temp) # 更新logsal置信下限
+  SRSub_logsal = append(SRSub_logsal, ub_logsal_temp) # 更新logsal置信上限
+}
+
+SRS1000_df = data.frame(SRSmean_salary, SRSvar_salary, SRSlb_salary, 
+                        SRSub_salary, SRSmean_logsal, SRSvar_logsal,
+                        SRSlb_logsal, SRSub_logsal) # 将所有数据保存在数据框中
+```
+
+### 2. `salary`和`logsal`的总体分布直方图
+
+```{r hist pop, fig.cap="总体分布直方图 (左：salary；右：logsal)", fig.dim=c(7,3), fig.align='center', dev.args=list(pointsize=8), tidy=TRUE}
+par(mfrow=c(1,2))
+hist(baseball$salary, xlab='salary', main='Histogram of salary')
+hist(log(baseball$salary), xlab='log(salary)', main='Histogram of logsal')
+```
+
+### 3. `salary`和`logsal`的样本均值频率分布直方图
+
+```{r hist sample mean, fig.cap="样本均值频率分布直方图 (左：salary；右：logsal)", fig.dim=c(7,3), fig.align='center', dev.args=list(pointsize=8), tidy=TRUE}
+par(mfrow=c(1,2))
+hist(SRS1000_df$SRSmean_salary, freq=FALSE,
+     xlab='Sample Mean of salary', main='Histogram of salary sample mean')
+hist(SRS1000_df$SRSmean_logsal, freq=FALSE,
+     xlab='Sample Mean of log(salary)', main='Histogram of logsal sample mean')
+```
+
+### 4. 样本均值的均值与方差、样本方差的均值
+
+```{r statistics of sample mean, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+salary_meanmean = mean(SRS1000_df$SRSmean_salary) # salary样本均值的均值
+salary_meanvar = var(SRS1000_df$SRSmean_salary) # salary样本均值的方差
+salary_varmean = mean(SRS1000_df$SRSvar_salary) # salary样本方差的均值
+logsal_meanmean = mean(SRS1000_df$SRSmean_logsal) # logsal样本均值的均值
+logsal_meanvar = var(SRS1000_df$SRSmean_logsal) # logsal样本均值的方差
+logsal_varmean = mean(SRS1000_df$SRSvar_logsal) # logsal样本方差的均值
+# 输出结果
+print(paste0('salary样本均值的均值与方差、样本方差的均值分别为',
+             format(salary_meanmean, scientific=TRUE, digits=5), '，', 
+             format(salary_meanvar, scientific=TRUE, digits=5), '，', 
+             format(salary_varmean, scientific=TRUE, digits=5)), quote=FALSE)
+print(paste0('logsal样本均值的均值与方差、样本方差的均值分别为',
+             round(logsal_meanmean, 4), '，', round(logsal_meanvar, 4),
+             '，', round(logsal_varmean, 4)), quote=FALSE)
+```
+
+根据定理3.1，有：  
+(1) $E(\bar{y}) = \bar{y}_U$，即样本均值的均值为总体均值的无偏估计;  
+(2) $V(\bar{y}) = \frac{1 - f}{n} S^2$  
+(3) $E(s^2) = S^2$, 即样本方差的均值为总体方差的无偏估计.
+
+下面计算`salary`和`logsal`的总体均值、样本均值的方差、总体方差的真实值，以及估计值与真实值的相对误差。将各估计值与真实值进行比较，可以验证定理3.1：
+
+```{r comparison, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+# salary的各真实值的计算
+salary_realmean = mean(baseball$salary) # 总体均值的真实值
+salary_realvar = var(baseball$salary) # 总体方差的真实值
+salary_real_sampleMeanVar = (1-n/N)/n * salary_realvar # 样本均值的方差的真实值
+# salary的各相对误差的计算
+salary_mean_error = (salary_meanmean - salary_realmean) / salary_realmean * 100
+salary_sampleMeanVar_error = (salary_meanvar - salary_real_sampleMeanVar) / 
+  salary_real_sampleMeanVar * 100
+salary_var_error = (salary_varmean - salary_realvar) / salary_realvar * 100
+
+# logsal的各真实值的计算
+logsal_realmean = mean(log(baseball$salary)) # 总体均值的真实值
+logsal_realvar = var(log(baseball$salary)) # 总体方差的真实值
+logsal_real_sampleMeanVar = (1-n/N)/n * logsal_realvar # 样本均值的方差的真实值
+# logsal的各相对误差的计算
+logsal_mean_error = (logsal_meanmean - logsal_realmean) / logsal_realmean * 100
+logsal_sampleMeanVar_error = (logsal_meanvar - logsal_real_sampleMeanVar) / 
+  logsal_real_sampleMeanVar * 100
+logsal_var_error = (logsal_varmean - logsal_realvar) / logsal_realvar * 100
+
+# 结果输出
+print('========== salary ==========', quote=FALSE)
+print(paste0('样本均值的均值为', format(salary_meanmean, scientific=TRUE, digits=5),
+             '，总体均值的真实值为', format(salary_realmean, scientific=TRUE, digits=5),
+             '，相对误差为', round(salary_mean_error, 4), '%'), quote=FALSE)
+print(paste0('样本均值的方差的估计值为', 
+             format(salary_meanvar, scientific=TRUE, digits=5),
+             '，样本均值的方差的真实值为',
+             format(salary_real_sampleMeanVar, scientific=TRUE, digits=5),
+             '，相对误差为', round(salary_sampleMeanVar_error, 4), '%'), quote=FALSE)
+print(paste0('样本方差的均值为', 
+             format(salary_varmean, scientific=TRUE, digits=5),
+             '，总体方差的真实值为',
+             format(salary_realvar, scientific=TRUE, digits=5),
+             '，相对误差为', round(salary_var_error, 4), '%'), quote=FALSE)
+
+print('========== logsal ==========', quote=FALSE)
+print(paste0('样本均值的均值为', round(logsal_meanmean, digits=5),
+             '，总体均值的真实值为', round(logsal_realmean, digits=5),
+             '，相对误差为', round(logsal_mean_error, 4), '%'), quote=FALSE)
+print(paste0('样本均值的方差的估计值为', round(logsal_meanvar, digits=5),
+             '，样本均值的方差的真实值为', round(logsal_real_sampleMeanVar, digits=5),
+             '，相对误差为', round(logsal_sampleMeanVar_error, 4), '%'), quote=FALSE)
+print(paste0('样本方差的均值为', round(logsal_varmean, digits=5),
+             '，总体方差的真实值为', round(logsal_realvar, digits=5),
+             '，相对误差为', round(logsal_var_error, 4), '%'), quote=FALSE)
+```
+
+### 5. 总体均值的置信区间覆盖真实值的比例
+
+```{r real mean in CI, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+SRS1000_df$salaryMean_in_CI = rep(0, 1000)
+SRS1000_df$logsalMean_in_CI = rep(0, 1000)
+SRS1000_df$salaryMean_in_CI[salary_realmean>SRSlb_salary & 
+                              salary_realmean<SRSub_salary] = 1
+SRS1000_df$logsalMean_in_CI[logsal_realmean>SRSlb_logsal & 
+                              logsal_realmean<SRSub_logsal] = 1
+salary_confidenceLevel = sum(SRS1000_df$salaryMean_in_CI) / 1000 * 100
+logsal_confidenceLevel = sum(SRS1000_df$logsalMean_in_CI) / 1000 * 100
+print(paste0('salary总体均值的置信区间覆盖真实值的比例为',
+             salary_confidenceLevel, '%'), quote=FALSE)
+print(paste0('logsal总体均值的置信区间覆盖真实值的比例为',
+             logsal_confidenceLevel, '%'), quote=FALSE)
+```
+
+根据上述结果，`logsal`总体均值的置信区间覆盖其真实值的比例更高，这是因为`logsal`的总体均值本身较为接近正态分布，能够更准确地构造置信区间。
+
+
+# 习题2.25
+
+用bootstrap方法构造总体均值$\bar{y}_U$的近似95%置信区间。采用从美国$N = 3078$个县构成的总体中抽取的容量为$n=300$的SRS WOR样本数据agsrs.csv，用bootstrap方法构造变量y（1992年农业用地面积）的总体均值$\bar{y}_U$的近似95%区间。做法如下：
+
+1) 从样本agsrs.csv的n个县中逐次有放回、等概率地抽取N个县，形成一个伪总体，变量y的值记为$\mathcal{U}^*_j = \{y^*_{1,j},...,y^*_{N,j}\}$;  
+2) 从$\mathcal{U}^*_j$中采用SRS WOR方法抽取一个容量为n的样本$\mathcal{S}^*_j$，计算变量y的样本均值$\bar{y}^*_j$;  
+3) 对$j = 1,...,1000$，重复1)-2)，得到$\bar{y}$的bootstrap样本$\bar{y}^*_1,...,\bar{y}^*_{1000}$，计算该bootstrap样本的0.025、0.975样本分位点$\bar{y}^*_L,\bar{y}^*_U$，得到总体均值$\bar{y}_U$的近似95%置信区间$[\bar{y}^*_L,\bar{y}^*_U]$.
+
+```{r bootstrap, echo=TRUE, comment='', tidy=TRUE}
+agsrs_sample = read.csv('agsrs.csv') # 读入数据
+acres92_sample = agsrs_sample$acres92
+N_25 = 3078; n_25 = 300
+set.seed(0); set.seed(1111)
+
+acres92_sampleMeans = c() # 初始化bootstrap样本的样本均值
+for (j in 1:1000){
+  # 构造伪总体
+  pseudo_popNum = c()
+  for (i in 1:N_25){
+    x = runif(1)
+    R = floor(n_25*x) + 1
+    pseudo_popNum = append(pseudo_popNum, R)
+  }
+  acres92_pseudoPop = acres92_sample[pseudo_popNum] # 一个伪总体 U^star_j
+  
+  # 从这一伪总体中采用SRS WOR方法抽取一个容量为n的样本
+  pseudo_sampleNum = get_SRS(n_25, N_25)
+  acres92_psedoSample = acres92_pseudoPop[pseudo_sampleNum]
+  acres92_mean = mean(acres92_psedoSample) # 样本均值
+  acres92_sampleMeans = append(acres92_sampleMeans, acres92_mean)
+}
+quantile(acres92_sampleMeans, c(0.025, 0.975)) # 近似95%置信区间
+```
+
+用Hájek中心极限定理得到的$\bar{y}_U$的置信区间为$[260,856.08,\ 334,937.92]$，计算置信下限和置信上限的相对误差：
+
+```{r CI bound error, echo=TRUE, comment='', tidy=TRUE, results='hold'}
+CI_lb_bootstrap = 256659.4; CI_ub_bootstrap = 339165.0
+CI_lb_hajek = 260856.08; CI_ub_hajek = 334937.92
+lb_error = (CI_lb_bootstrap - CI_lb_hajek) / CI_lb_hajek * 100
+ub_error = (CI_ub_bootstrap - CI_ub_hajek) / CI_ub_hajek * 100
+print(paste0('置信下限的相对误差为', round(lb_error,4), '%'))
+print(paste0('置信上限的相对误差为', round(ub_error,4), '%'))
+```
+
+由上述计算结果可知，用bootstrap得到的置信下限和置信上限与Hájek置信下限和置信上限的相对误差大约在$\pm 1.5%$左右，所以用bootstrap来得到置信区间也是一种很好的方法。
+
+
